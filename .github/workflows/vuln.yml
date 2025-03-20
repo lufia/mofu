@@ -5,4 +5,7 @@ on:
   - cron: '0 10 */14 * *'
 jobs:
   vuln:
-    uses: golang/govulncheck-action@v1
+    runs-on: ubuntu-latest
+    name: Run govulncheck
+    steps:
+    - uses: golang/govulncheck-action@v1
