@@ -68,4 +68,22 @@ func TestMockReturn(t *testing.T) {
 		m := For(func() string { return "" })
 		m.Return(30)
 	})
+
+	t.Run("replay", func(t *testing.T) {
+		m := For(func(i int) {})
+		fn, r := m.Make()
+		fn(100)
+		r.Replay(0, func(i int) {
+			gt.Equal(t, i, 100)
+		})
+	})
+	t.Run("replay but out of range", func(t *testing.T) {
+		defer func() {
+			e := recover()
+			gt.NotNil(t, e)
+		}()
+		m := For(func(i int) {})
+		_, r := m.Make()
+		r.Replay(0, nil)
+	})
 }

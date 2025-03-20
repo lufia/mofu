@@ -55,22 +55,16 @@ func (m *Mock[T]) Make() (T, *Recorder[T]) {
 	ret := slices.Clone(m.ret)
 	var r Recorder[T]
 	p := reflect.MakeFunc(m.fn.Type(), func(args []reflect.Value) []reflect.Value {
+		r.params = append(r.params, fromValues(args))
 		if len(ret) == 0 {
 			r.call.Add(1)
 			return m.zeroReturn()
 		}
-		t := m.fn.Type()
-		n := t.NumOut()
-		a := make([]reflect.Value, n)
 		off := int(r.call.Add(1) - 1)
 		if off >= len(ret) {
 			off = len(ret) - 1
 		}
-		retValues := ret[off].values
-		for i, v := range retValues {
-			a[i] = reflect.ValueOf(v)
-		}
-		return a
+		return toValues(ret[off].values)
 	})
 	return p.Interface().(T), &r
 }
@@ -87,11 +81,37 @@ func (m *Mock[T]) zeroReturn() []reflect.Value {
 
 // Recorder records the statistics of a mock function.
 type Recorder[T any] struct {
-	call atomic.Int32
-	fn   T
+	call   atomic.Int64
+	fn     T
+	params [][]any
 }
 
 // Count returns the call count of the mock function.
-func (r *Recorder[T]) Count() int {
-	return int(r.call.Load())
+func (r *Recorder[T]) Count() int64 {
+	return r.call.Load()
+}
+
+// Replay calls f with recorded parameters indexed by i.
+func (r *Recorder[T]) Replay(i int, fn T) {
+	if i >= len(r.params) {
+		panic("index out of the range")
+	}
+	v := reflect.ValueOf(fn)
+	v.Call(toValues(r.params[i]))
+}
+
+func toValues(values []any) []reflect.Value {
+	a := make([]reflect.Value, len(values))
+	for i, v := range values {
+		a[i] = reflect.ValueOf(v)
+	}
+	return a
+}
+
+func fromValues(values []reflect.Value) []any {
+	a := make([]any, len(values))
+	for i, v := range values {
+		a[i] = v.Interface()
+	}
+	return a
 }

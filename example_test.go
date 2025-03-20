@@ -13,13 +13,27 @@ func (fn Retriever) Get(key string) string {
 }
 
 func Cook(r Retriever) {
-	r.Get("key")
+	r.Get("key1")
+	r.Get("key2")
 }
 
 func Example() {
 	mock := mofu.For(Retriever(nil))
 	mock.Return("OK")
+
 	fn, r := mock.Make()
 	Cook(fn)
-	fmt.Println(r.Count()) // Output: 1
+
+	fmt.Println(r.Count())
+	r.Replay(0, func(key string) string {
+		fmt.Println(key)
+		return "" // not used
+	})
+	r.Replay(1, func(key string) string {
+		fmt.Println(key)
+		return "" // not used
+	})
+	// Output: 2
+	// key1
+	// key2
 }
