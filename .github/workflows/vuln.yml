@@ -1,0 +1,8 @@
+name: Test
+
+on:
+  schedule:
+  - cron: '0 10 */14 * *'
+jobs:
+  vuln:
+    uses: golang/govulncheck-action@v1
