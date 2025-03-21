@@ -7,7 +7,7 @@ import (
 )
 
 func TestFor(t *testing.T) {
-	m := For(func() {})
+	m := MockFor[func()]()
 	gt.NotNil(t, m)
 }
 
@@ -16,12 +16,12 @@ func TestFor_notFunc(t *testing.T) {
 		e := recover()
 		gt.NotNil(t, e)
 	}()
-	For(0)
+	MockOf(0)
 }
 
 func TestMockReturn(t *testing.T) {
 	t.Run("repeat a value", func(t *testing.T) {
-		m := For(func() string { return "" })
+		m := MockFor[func() string]()
 		m.Return("OK")
 		fn, r := m.Make()
 		gt.Equal(t, fn(), "OK")
@@ -29,7 +29,7 @@ func TestMockReturn(t *testing.T) {
 		gt.Equal(t, r.Count(), 2)
 	})
 	t.Run("repeat last value", func(t *testing.T) {
-		m := For(func() int { return 0 })
+		m := MockFor[func() int]()
 		fn, r := m.Return(1).Return(2).Make()
 		gt.Equal(t, fn(), 1)
 		gt.Equal(t, fn(), 2)
@@ -37,7 +37,7 @@ func TestMockReturn(t *testing.T) {
 		gt.Equal(t, r.Count(), 3)
 	})
 	t.Run("no return", func(t *testing.T) {
-		m := For(func() bool { return false })
+		m := MockFor[func() bool]()
 		fn, r := m.Make()
 		gt.Equal(t, fn(), false)
 		gt.Equal(t, r.Count(), 1)
@@ -48,7 +48,7 @@ func TestMockReturn(t *testing.T) {
 			e := recover()
 			gt.NotNil(t, e)
 		}()
-		m := For(func() float64 { return 0.0 })
+		m := MockFor[func() float64]()
 		m.Return()
 	})
 	t.Run("the length is greater than the result's", func(t *testing.T) {
@@ -56,7 +56,7 @@ func TestMockReturn(t *testing.T) {
 			e := recover()
 			gt.NotNil(t, e)
 		}()
-		m := For(func() float64 { return 0.0 })
+		m := MockFor[func() float64]()
 		m.Return(1.0, 2.0)
 	})
 
@@ -65,12 +65,12 @@ func TestMockReturn(t *testing.T) {
 			e := recover()
 			gt.NotNil(t, e)
 		}()
-		m := For(func() string { return "" })
+		m := MockFor[func() string]()
 		m.Return(30)
 	})
 
 	t.Run("replay", func(t *testing.T) {
-		m := For(func(i int) {})
+		m := MockFor[func(int)]()
 		fn, r := m.Make()
 		fn(100)
 		r.Replay(0, func(i int) {
@@ -82,7 +82,7 @@ func TestMockReturn(t *testing.T) {
 			e := recover()
 			gt.NotNil(t, e)
 		}()
-		m := For(func(i int) {})
+		m := MockFor[func(int)]()
 		_, r := m.Make()
 		r.Replay(0, nil)
 	})
@@ -90,14 +90,14 @@ func TestMockReturn(t *testing.T) {
 
 func TestMockMatch(t *testing.T) {
 	t.Run("match", func(t *testing.T) {
-		m := For(func(i int) int { return 0 })
+		m := MockFor[func(int) int]()
 		m.Match(10).Return(100)
 		fn, r := m.Make()
 		gt.Equal(t, fn(10), 100)
 		gt.Equal(t, r.Count(), 1)
 	})
 	t.Run("match existing pattern", func(t *testing.T) {
-		m := For(func(i int) int { return 0 })
+		m := MockFor[func(int) int]()
 		m.Match(10).Return(100)
 		m.Match(10).Return(101)
 		fn, _ := m.Make()
@@ -105,7 +105,7 @@ func TestMockMatch(t *testing.T) {
 		gt.Equal(t, fn(10), 101)
 	})
 	t.Run("not match", func(t *testing.T) {
-		m := For(func(i int) int { return 0 })
+		m := MockFor[func(int) int]()
 		m.Match(10).Return(100)
 		m.Return(2)
 		fn, _ := m.Make()
@@ -117,7 +117,7 @@ func TestMockMatch(t *testing.T) {
 			e := recover()
 			gt.NotNil(t, e)
 		}()
-		m := For(func(int) {})
+		m := MockFor[func(int)]()
 		m.Match()
 	})
 	t.Run("the length is greater than the argument's", func(t *testing.T) {
@@ -125,7 +125,7 @@ func TestMockMatch(t *testing.T) {
 			e := recover()
 			gt.NotNil(t, e)
 		}()
-		m := For(func(string) {})
+		m := MockFor[func(string)]()
 		m.Match("a", "b")
 	})
 
@@ -134,7 +134,7 @@ func TestMockMatch(t *testing.T) {
 			e := recover()
 			gt.NotNil(t, e)
 		}()
-		m := For(func(string) {})
+		m := MockFor[func(string)]()
 		m.Match(30)
 	})
 }
