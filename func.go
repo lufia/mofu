@@ -175,13 +175,20 @@ func (r *Recorder[T]) Count() int64 {
 	return r.call.Load()
 }
 
-// Replay calls f with recorded parameters indexed by i.
-func (r *Recorder[T]) Replay(i int, fn T) {
-	if i >= len(r.params) {
-		panic("index out of the range")
+// Replay returns an iterator over all call logs of an mock function.
+// Each call reproduces its situation with function arguments.
+func (r *Recorder[T]) Replay() iter.Seq[func(T)] {
+	return func(yield func(func(T)) bool) {
+		for _, a := range r.params {
+			do := func(fn T) {
+				v := reflect.ValueOf(fn)
+				v.Call(toValues(a))
+			}
+			if !yield(do) {
+				break
+			}
+		}
 	}
-	v := reflect.ValueOf(fn)
-	v.Call(toValues(r.params[i]))
 }
 
 func toValues(values []any) []reflect.Value {
