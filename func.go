@@ -2,6 +2,7 @@
 package mofu
 
 import (
+	"iter"
 	"reflect"
 	"slices"
 	"sync/atomic"
@@ -9,13 +10,9 @@ import (
 
 // Mock is a mock object for creating a mock function.
 type Mock[T any] struct {
-	fn  reflect.Value
-	ret []retValue
-}
-
-type retValue struct {
-	values []any
-	repeat bool
+	fn          reflect.Value
+	matchers    []*Matcher[T]
+	dfltMatcher *Matcher[T]
 }
 
 // For returns an empty mock object.
@@ -26,47 +23,128 @@ func For[T any](fn T) *Mock[T] {
 	if v.Type().Kind() != reflect.Func {
 		panic("fn must be a function")
 	}
-	return &Mock[T]{
+	m := &Mock[T]{
 		fn: v,
 	}
+	m.dfltMatcher = &Matcher[T]{
+		m: m,
+	}
+	return m
+}
+
+// Matcher represents a matcher for a mock function arguments.
+type Matcher[T any] struct {
+	m       *Mock[T]
+	pattern []any
+	ret     []retValue
+}
+
+type retValue struct {
+	values []any
+	repeat bool
+}
+
+// The caller should guarantee the length of args equal to the length of args of T.
+func (c *Matcher[T]) match(args []reflect.Value) bool {
+	for i, v1 := range args {
+		v2 := reflect.ValueOf(c.pattern[i])
+		if v1.Type() != v2.Type() {
+			return false
+		}
+		if !v1.Equal(v2) {
+			return false
+		}
+	}
+	return true
 }
 
 // Return adds the return values that will return them from a mock function.
-func (m *Mock[T]) Return(results ...any) *Mock[T] {
-	t := m.fn.Type()
+func (c *Matcher[T]) Return(results ...any) *Matcher[T] {
+	t := c.m.fn.Type()
 	if len(results) != t.NumOut() {
 		panic("number of results must exactly match to the func's results")
 	}
-	values := make([]any, len(results))
-	for i, r := range results {
-		rt := reflect.TypeOf(r)
-		ft := t.Out(i)
-		if rt != ft {
-			panic("type differ")
-		}
-		values[i] = r
+	t1 := allTypes(valueTypes(results))
+	t2 := allTypes(resultTypes{t})
+	if !typesEqual(t1, t2) {
+		panic("type differ")
 	}
-	m.ret = append(m.ret, retValue{values, true})
+	c.ret = append(c.ret, retValue{results, true})
+	return c
+}
+
+// Return is like [Matcher.Return] except this adds results to the default matcher.
+func (m *Mock[T]) Return(results ...any) *Mock[T] {
+	m.dfltMatcher.Return(results...)
 	return m
+}
+
+// Match returns a [Matcher].
+func (m *Mock[T]) Match(args ...any) *Matcher[T] {
+	t := m.fn.Type()
+	if c := m.lookupMatcher(toValues(args)); c != nil {
+		return c
+	}
+
+	// TODO(lufia): variadic parameter (t.IsValiadic() == true)
+	if len(args) != t.NumIn() {
+		panic("number of args must exactly match to the func's args")
+	}
+	t1 := allTypes(valueTypes(args))
+	t2 := allTypes(argTypes{t})
+	if !typesEqual(t1, t2) {
+		panic("type differ")
+	}
+	c := &Matcher[T]{m, args, nil}
+	m.matchers = append(m.matchers, c)
+	return c
+}
+
+// typesEqual returns whether each item 's type of a are same corresponding to b's.
+//
+// If the length of a is not equal to the length of b,
+// typeEqual compares only items during 0 to min(a, b).
+func typesEqual(a, b iter.Seq[reflect.Type]) bool {
+	s1 := slices.Collect(a)
+	s2 := slices.Collect(b)
+	n := min(len(s1), len(s2))
+	for i := range n {
+		if s1[i] != s2[i] {
+			return false
+		}
+	}
+	return true
 }
 
 // Make returns a mock function and its recorder.
 func (m *Mock[T]) Make() (T, *Recorder[T]) {
-	ret := slices.Clone(m.ret)
 	var r Recorder[T]
 	p := reflect.MakeFunc(m.fn.Type(), func(args []reflect.Value) []reflect.Value {
 		r.params = append(r.params, fromValues(args))
-		if len(ret) == 0 {
+		c := m.lookupMatcher(args)
+		if c == nil {
+			c = m.dfltMatcher
+		}
+		if len(c.ret) == 0 {
 			r.call.Add(1)
 			return m.zeroReturn()
 		}
 		off := int(r.call.Add(1) - 1)
-		if off >= len(ret) {
-			off = len(ret) - 1
+		if off >= len(c.ret) {
+			off = len(c.ret) - 1
 		}
-		return toValues(ret[off].values)
+		return toValues(c.ret[off].values)
 	})
 	return p.Interface().(T), &r
+}
+
+func (m *Mock[T]) lookupMatcher(args []reflect.Value) *Matcher[T] {
+	for _, c := range m.matchers {
+		if c.match(args) {
+			return c
+		}
+	}
+	return nil
 }
 
 func (m *Mock[T]) zeroReturn() []reflect.Value {
