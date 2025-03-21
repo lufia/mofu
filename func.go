@@ -15,10 +15,16 @@ type Mock[T any] struct {
 	dfltMatcher *Matcher[T]
 }
 
-// For returns an empty mock object.
+// MockFor returns an empty mock object.
+func MockFor[T any]() *Mock[T] {
+	var fn T
+	return MockOf(fn)
+}
+
+// MockOf returns an empty mock object.
 //
 // Fn is only used to specify the type of a mock function.
-func For[T any](fn T) *Mock[T] {
+func MockOf[T any](fn T) *Mock[T] {
 	v := reflect.ValueOf(fn)
 	if v.Type().Kind() != reflect.Func {
 		panic("fn must be a function")
