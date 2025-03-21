@@ -2,6 +2,7 @@ package mofu_test
 
 import (
 	"fmt"
+	"slices"
 
 	"github.com/lufia/mofu"
 )
@@ -25,11 +26,12 @@ func Example() {
 	Cook(fn)
 
 	fmt.Println(r.Count())
-	r.Replay(0, func(key string) string {
+	scene := slices.Collect(r.Replay())
+	scene[0](func(key string) string {
 		fmt.Println(key)
 		return "" // not used
 	})
-	r.Replay(1, func(key string) string {
+	scene[1](func(key string) string {
 		fmt.Println(key)
 		return "" // not used
 	})
