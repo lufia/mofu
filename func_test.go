@@ -87,3 +87,54 @@ func TestMockReturn(t *testing.T) {
 		r.Replay(0, nil)
 	})
 }
+
+func TestMockMatch(t *testing.T) {
+	t.Run("match", func(t *testing.T) {
+		m := For(func(i int) int { return 0 })
+		m.Match(10).Return(100)
+		fn, r := m.Make()
+		gt.Equal(t, fn(10), 100)
+		gt.Equal(t, r.Count(), 1)
+	})
+	t.Run("match existing pattern", func(t *testing.T) {
+		m := For(func(i int) int { return 0 })
+		m.Match(10).Return(100)
+		m.Match(10).Return(101)
+		fn, _ := m.Make()
+		gt.Equal(t, fn(10), 100)
+		gt.Equal(t, fn(10), 101)
+	})
+	t.Run("not match", func(t *testing.T) {
+		m := For(func(i int) int { return 0 })
+		m.Match(10).Return(100)
+		m.Return(2)
+		fn, _ := m.Make()
+		gt.Equal(t, fn(0), 2)
+	})
+
+	t.Run("the length is less than the argument's", func(t *testing.T) {
+		defer func() {
+			e := recover()
+			gt.NotNil(t, e)
+		}()
+		m := For(func(int) {})
+		m.Match()
+	})
+	t.Run("the length is greater than the argument's", func(t *testing.T) {
+		defer func() {
+			e := recover()
+			gt.NotNil(t, e)
+		}()
+		m := For(func(string) {})
+		m.Match("a", "b")
+	})
+
+	t.Run("the type is not equal to the argument's", func(t *testing.T) {
+		defer func() {
+			e := recover()
+			gt.NotNil(t, e)
+		}()
+		m := For(func(string) {})
+		m.Match(30)
+	})
+}
