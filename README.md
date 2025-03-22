@@ -1,6 +1,6 @@
 # mofu
 
-Mofu provides utilities to create a mock function to use in test code.
+Mofu provides utilities to create a mock function to use in test code without any interfaces.
 
 [![GoDev][godev-image]][godev-url]
 [![Actions Status][actions-image]][actions-url]
