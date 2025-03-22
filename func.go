@@ -4,7 +4,6 @@ package mofu
 import (
 	"iter"
 	"reflect"
-	"slices"
 	"sync/atomic"
 )
 
@@ -70,9 +69,9 @@ func (c *Matcher[T]) Return(results ...any) *Matcher[T] {
 	if len(results) != t.NumOut() {
 		panic("number of results must exactly match to the func's results")
 	}
-	t1 := allTypes(valueTypes(results))
-	t2 := allTypes(resultTypes{t})
-	if !typesEqual(t1, t2) {
+	t1 := collectTypes(valueTypes(results))
+	signature := collectTypes(resultTypes{t})
+	if !typesSatisfy(t1, signature) {
 		panic("type differ")
 	}
 	c.ret = append(c.ret, retValue{results, true})
@@ -88,7 +87,8 @@ func (m *Mock[T]) Return(results ...any) *Mock[T] {
 // Match returns a [Matcher].
 func (m *Mock[T]) Match(args ...any) *Matcher[T] {
 	t := m.fn.Type()
-	if c := m.lookupMatcher(toValues(args)); c != nil {
+	signature := collectTypes(argTypes{t})
+	if c := m.lookupMatcher(toValues(args, signature)); c != nil {
 		return c
 	}
 
@@ -96,9 +96,8 @@ func (m *Mock[T]) Match(args ...any) *Matcher[T] {
 	if len(args) != t.NumIn() {
 		panic("number of args must exactly match to the func's args")
 	}
-	t1 := allTypes(valueTypes(args))
-	t2 := allTypes(argTypes{t})
-	if !typesEqual(t1, t2) {
+	t1 := collectTypes(valueTypes(args))
+	if !typesSatisfy(t1, signature) {
 		panic("type differ")
 	}
 	c := &Matcher[T]{m, args, nil}
@@ -106,17 +105,26 @@ func (m *Mock[T]) Match(args ...any) *Matcher[T] {
 	return c
 }
 
-// typesEqual returns whether each item 's type of a are same corresponding to b's.
+// typesSatisfy returns whether each item 's type of valueTypes are same corresponding to signatureTypes's.
 //
-// If the length of a is not equal to the length of b,
-// typeEqual compares only items during 0 to min(a, b).
-func typesEqual(a, b iter.Seq[reflect.Type]) bool {
-	s1 := slices.Collect(a)
-	s2 := slices.Collect(b)
-	n := min(len(s1), len(s2))
-	for i := range n {
-		if s1[i] != s2[i] {
-			return false
+// If the length of valueTypes is not equal to the length of signatureTypes,
+// typesSatisfy compares only items during 0 to len(signatureTypes).
+func typesSatisfy(valueTypes, signatureTypes []reflect.Type) bool {
+	// TODO(lufia): only s2 <= s1
+	for i, t := range signatureTypes {
+		switch t.Kind() {
+		case reflect.Interface:
+			if valueTypes[i] != nil && !valueTypes[i].Implements(t) {
+				return false
+			}
+		case reflect.Slice:
+			if valueTypes[i] != nil && valueTypes[i] != t {
+				return false
+			}
+		default:
+			if valueTypes[i] != t {
+				return false
+			}
 		}
 	}
 	return true
@@ -124,9 +132,11 @@ func typesEqual(a, b iter.Seq[reflect.Type]) bool {
 
 // Make returns a mock function and its recorder.
 func (m *Mock[T]) Make() (T, *Recorder[T]) {
+	t := m.fn.Type()
+	signature := collectTypes(resultTypes{t})
 	var r Recorder[T]
 	p := reflect.MakeFunc(m.fn.Type(), func(args []reflect.Value) []reflect.Value {
-		r.params = append(r.params, fromValues(args))
+		r.params = append(r.params, args)
 		c := m.lookupMatcher(args)
 		if c == nil {
 			c = m.dfltMatcher
@@ -139,7 +149,7 @@ func (m *Mock[T]) Make() (T, *Recorder[T]) {
 		if off >= len(c.ret) {
 			off = len(c.ret) - 1
 		}
-		return toValues(c.ret[off].values)
+		return toValues(c.ret[off].values, signature)
 	})
 	return p.Interface().(T), &r
 }
@@ -167,7 +177,7 @@ func (m *Mock[T]) zeroReturn() []reflect.Value {
 type Recorder[T any] struct {
 	call   atomic.Int64
 	fn     T
-	params [][]any
+	params [][]reflect.Value
 }
 
 // Count returns the call count of the mock function.
@@ -182,7 +192,7 @@ func (r *Recorder[T]) Replay() iter.Seq[func(T)] {
 		for _, a := range r.params {
 			do := func(fn T) {
 				v := reflect.ValueOf(fn)
-				v.Call(toValues(a))
+				v.Call(a)
 			}
 			if !yield(do) {
 				break
@@ -191,18 +201,14 @@ func (r *Recorder[T]) Replay() iter.Seq[func(T)] {
 	}
 }
 
-func toValues(values []any) []reflect.Value {
+func toValues(values []any, signatureTypes []reflect.Type) []reflect.Value {
 	a := make([]reflect.Value, len(values))
 	for i, v := range values {
-		a[i] = reflect.ValueOf(v)
-	}
-	return a
-}
-
-func fromValues(values []reflect.Value) []any {
-	a := make([]any, len(values))
-	for i, v := range values {
-		a[i] = v.Interface()
+		if v == nil {
+			a[i] = reflect.Zero(signatureTypes[i])
+		} else {
+			a[i] = reflect.ValueOf(v)
+		}
 	}
 	return a
 }

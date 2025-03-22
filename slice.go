@@ -1,7 +1,6 @@
 package mofu
 
 import (
-	"iter"
 	"reflect"
 )
 
@@ -10,14 +9,12 @@ type typeSlice interface {
 	Get(i int) reflect.Type
 }
 
-func allTypes(a typeSlice) iter.Seq[reflect.Type] {
-	return func(yield func(reflect.Type) bool) {
-		for i := range a.N() {
-			if !yield(a.Get(i)) {
-				break
-			}
-		}
+func collectTypes(s typeSlice) []reflect.Type {
+	a := make([]reflect.Type, s.N())
+	for i := range s.N() {
+		a[i] = s.Get(i)
 	}
+	return a
 }
 
 type resultTypes struct {
