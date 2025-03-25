@@ -30,8 +30,3 @@ type argTypes struct {
 
 func (t argTypes) N() int                 { return t.fn.NumIn() }
 func (t argTypes) Get(i int) reflect.Type { return t.fn.In(i) }
-
-type valueTypes []any
-
-func (a valueTypes) N() int                 { return len(a) }
-func (a valueTypes) Get(i int) reflect.Type { return reflect.TypeOf(a[i]) }

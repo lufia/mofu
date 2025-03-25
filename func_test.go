@@ -1,6 +1,7 @@
 package mofu
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/m-mizutani/gt"
@@ -129,5 +130,12 @@ func TestMockMatch(t *testing.T) {
 		}()
 		m := MockFor[func(string)]()
 		m.Match(30)
+	})
+
+	t.Run("variadic arguments", func(t *testing.T) {
+		m := MockOf(fmt.Sprint)
+		m.Match(1, 2).Return("1 2")
+		fn, _ := m.Make()
+		gt.Equal(t, fn(1, 2), "1 2")
 	})
 }
