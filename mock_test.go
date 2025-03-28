@@ -1,8 +1,10 @@
 package mofu_test
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"time"
 
@@ -15,6 +17,14 @@ func ExampleMock_Return() {
 	now, _ := m.Make()
 	fmt.Println(now().Format(time.DateTime))
 	// Output: 2025-03-20 00:00:00
+}
+
+func ExampleMock_Match() {
+	m := mofu.MockOf(io.ReadAll)
+	m.Match(mofu.Any).Return([]byte("OK"), nil)
+	readAll, _ := m.Make()
+	b, _ := readAll(&bytes.Buffer{})
+	fmt.Println(string(b)) // Output: OK
 }
 
 func ExampleMatcher_Return() {
