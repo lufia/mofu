@@ -2,8 +2,10 @@
 package mofu
 
 import (
+	"fmt"
 	"iter"
 	"reflect"
+	"slices"
 	"sync/atomic"
 )
 
@@ -40,41 +42,111 @@ func MockOf[T any](fn T) *Mock[T] {
 // Matcher represents a matcher for a mock function arguments.
 type Matcher[T any] struct {
 	m       *Mock[T]
-	pattern []any
+	pattern []*typeval
 	ret     []retValue
 }
 
 type retValue struct {
-	values []any
+	values []*typeval
 	repeat bool
 }
 
+// matchArgs returns whether args matches the expected argument pattern of c.
+//
 // The caller should guarantee the length of args equal to the length of args of T.
-func (c *Matcher[T]) match(args []reflect.Value) bool {
+func (c *Matcher[T]) matchArgs(args []*typeval) bool {
 	for i, v1 := range args {
-		v2 := reflect.ValueOf(c.pattern[i])
-		if v1.Type() != v2.Type() {
-			return false
-		}
-		if !v1.Equal(v2) {
+		if !v1.Equal(c.pattern[i]) {
 			return false
 		}
 	}
 	return true
 }
 
+type typeval struct {
+	typ reflect.Type
+	val reflect.Value
+}
+
+func (tv *typeval) Equal(o *typeval) bool {
+	// TODO(lufia): any, not, ...
+	return tv.typ == o.typ && tv.val.Equal(o.val)
+}
+
+func newTypeval(v reflect.Value) *typeval {
+	return &typeval{v.Type(), v}
+}
+
+// checkTypeval checks whether v is assignable to type typ.
+// If so, it returns typeval. Otherwise returns an error.
+func checkTypeval(v any, typ reflect.Type) (*typeval, error) {
+	switch typ.Kind() {
+	case reflect.Interface:
+		if v == nil {
+			return newTypeval(reflect.Zero(typ)), nil
+		}
+		val := reflect.ValueOf(v)
+		if !val.Type().Implements(typ) {
+			return nil, fmt.Errorf("%s does not implement %s", val.Type(), typ)
+		}
+		return &typeval{typ, val}, nil
+	case reflect.Pointer, reflect.Slice:
+		// TODO(lufia): nilable kinds ... reflect.Chan, reflect.Func, reflect.Map, reflect.Slice
+		if v == nil {
+			return newTypeval(reflect.Zero(typ)), nil
+		}
+		val := reflect.ValueOf(v)
+		if t := val.Type(); t != typ {
+			return nil, fmt.Errorf("mismatched types %s and %s", typ, t)
+		}
+		return &typeval{typ, val}, nil
+	default:
+		if v == nil {
+			return nil, fmt.Errorf("cannot use nil as %s value", typ)
+		}
+		val := reflect.ValueOf(v)
+		if t := val.Type(); t != typ {
+			return nil, fmt.Errorf("mismatched types %s and %s", typ, t)
+		}
+		return &typeval{typ, val}, nil
+	}
+}
+
+func checkAndMerge(values []any, types []reflect.Type, isVariadic bool) ([]*typeval, error) {
+	if len(values) == 0 && len(types) == 0 {
+		return nil, nil
+	}
+	if isVariadic && len(types) <= len(values) {
+		newTypes := make([]reflect.Type, len(values))
+		last := types[len(types)-1]
+		copy(newTypes, types[:len(types)-1])
+		n := len(values) - len(types) + 1
+		copy(newTypes[len(newTypes)-n:], slices.Repeat([]reflect.Type{last.Elem()}, n))
+		types = newTypes
+	}
+	if len(values) != len(types) {
+		return nil, fmt.Errorf("number of args/results must match to the function signature")
+	}
+	a := make([]*typeval, len(values))
+	for i, v := range values {
+		p, err := checkTypeval(v, types[i])
+		if err != nil {
+			return nil, err
+		}
+		a[i] = p
+	}
+	return a, nil
+}
+
 // Return adds the return values that will return them from a mock function.
 func (c *Matcher[T]) Return(results ...any) *Matcher[T] {
 	t := c.m.fn.Type()
-	if len(results) != t.NumOut() {
-		panic("number of results must exactly match to the func's results")
+	types := collectTypes(resultTypes{t})
+	a, err := checkAndMerge(results, types, false)
+	if err != nil {
+		panic(err)
 	}
-	t1 := collectTypes(valueTypes(results))
-	signature := collectTypes(resultTypes{t})
-	if !typesSatisfy(t1, signature) {
-		panic("type differ")
-	}
-	c.ret = append(c.ret, retValue{results, true})
+	c.ret = append(c.ret, retValue{a, true})
 	return c
 }
 
@@ -87,57 +159,30 @@ func (m *Mock[T]) Return(results ...any) *Mock[T] {
 // Match returns a [Matcher].
 func (m *Mock[T]) Match(args ...any) *Matcher[T] {
 	t := m.fn.Type()
-	signature := collectTypes(argTypes{t})
-	if c := m.lookupMatcher(toValues(args, signature)); c != nil {
-		return c
+	types := collectTypes(argTypes{t})
+	pattern, err := checkAndMerge(args, types, t.IsVariadic())
+	if err != nil {
+		panic(err)
 	}
 
-	// TODO(lufia): variadic parameter (t.IsValiadic() == true)
-	if len(args) != t.NumIn() {
-		panic("number of args must exactly match to the func's args")
+	if c := m.lookupMatcher(pattern); c != nil {
+		return c
 	}
-	t1 := collectTypes(valueTypes(args))
-	if !typesSatisfy(t1, signature) {
-		panic("type differ")
-	}
-	c := &Matcher[T]{m, args, nil}
+	c := &Matcher[T]{m, pattern, nil}
 	m.matchers = append(m.matchers, c)
 	return c
 }
 
-// typesSatisfy returns whether each item 's type of valueTypes are same corresponding to signatureTypes's.
-//
-// If the length of valueTypes is not equal to the length of signatureTypes,
-// typesSatisfy compares only items during 0 to len(signatureTypes).
-func typesSatisfy(valueTypes, signatureTypes []reflect.Type) bool {
-	// TODO(lufia): only s2 <= s1
-	for i, t := range signatureTypes {
-		switch t.Kind() {
-		case reflect.Interface:
-			if valueTypes[i] != nil && !valueTypes[i].Implements(t) {
-				return false
-			}
-		case reflect.Slice:
-			if valueTypes[i] != nil && valueTypes[i] != t {
-				return false
-			}
-		default:
-			if valueTypes[i] != t {
-				return false
-			}
-		}
-	}
-	return true
-}
-
 // Make returns a mock function and its recorder.
 func (m *Mock[T]) Make() (T, *Recorder[T]) {
-	t := m.fn.Type()
-	signature := collectTypes(resultTypes{t})
 	var r Recorder[T]
 	p := reflect.MakeFunc(m.fn.Type(), func(args []reflect.Value) []reflect.Value {
 		r.params = append(r.params, args)
-		c := m.lookupMatcher(args)
+		a := fromValues(args)
+		if m.fn.Type().IsVariadic() {
+			a = flattenVariadic(a)
+		}
+		c := m.lookupMatcher(a)
 		if c == nil {
 			c = m.dfltMatcher
 		}
@@ -145,18 +190,49 @@ func (m *Mock[T]) Make() (T, *Recorder[T]) {
 			r.call.Add(1)
 			return m.zeroReturn()
 		}
-		off := int(r.call.Add(1) - 1)
-		if off >= len(c.ret) {
-			off = len(c.ret) - 1
+		off := r.call.Add(1) - 1
+		n := int64(len(c.ret))
+		if off >= n {
+			off = n - 1
 		}
-		return toValues(c.ret[off].values, signature)
+		return toValues(c.ret[off].values)
 	})
 	return p.Interface().(T), &r
 }
 
-func (m *Mock[T]) lookupMatcher(args []reflect.Value) *Matcher[T] {
+func fromValues(values []reflect.Value) []*typeval {
+	a := make([]*typeval, len(values))
+	for i, v := range values {
+		a[i] = newTypeval(v)
+	}
+	return a
+}
+
+func flattenVariadic(a []*typeval) []*typeval {
+	if len(a) == 0 {
+		return nil
+	}
+	last := a[len(a)-1].val
+	s := make([]*typeval, len(a)-1+last.Len())
+	n := len(a) - 1
+	copy(s, a[:n])
+	for i := range last.Len() {
+		s[n+i] = newTypeval(last.Index(i))
+	}
+	return s
+}
+
+func toValues(a []*typeval) []reflect.Value {
+	values := make([]reflect.Value, len(a))
+	for i, v := range a {
+		values[i] = v.val
+	}
+	return values
+}
+
+func (m *Mock[T]) lookupMatcher(args []*typeval) *Matcher[T] {
 	for _, c := range m.matchers {
-		if c.match(args) {
+		if c.matchArgs(args) {
 			return c
 		}
 	}
@@ -199,16 +275,4 @@ func (r *Recorder[T]) Replay() iter.Seq[func(T)] {
 			}
 		}
 	}
-}
-
-func toValues(values []any, signatureTypes []reflect.Type) []reflect.Value {
-	a := make([]reflect.Value, len(values))
-	for i, v := range values {
-		if v == nil {
-			a[i] = reflect.Zero(signatureTypes[i])
-		} else {
-			a[i] = reflect.ValueOf(v)
-		}
-	}
-	return a
 }
