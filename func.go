@@ -87,8 +87,7 @@ func checkTypeval(v any, typ reflect.Type) (*typeval, error) {
 			return nil, fmt.Errorf("%s does not implement %s", val.Type(), typ)
 		}
 		return &typeval{typ, val}, nil
-	case reflect.Pointer, reflect.Slice:
-		// TODO(lufia): nilable kinds ... reflect.Chan, reflect.Func, reflect.Map, reflect.Slice
+	case reflect.Pointer, reflect.Slice, reflect.Map, reflect.Chan, reflect.Func:
 		if v == nil {
 			return newTypeval(reflect.Zero(typ)), nil
 		}
