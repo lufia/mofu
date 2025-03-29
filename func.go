@@ -219,8 +219,8 @@ func (m *Mock[T]) Return(results ...any) *Mock[T] {
 	return m
 }
 
-// Match returns a [Cond].
-func (m *Mock[T]) Match(args ...any) *Cond[T] {
+// When returns a [Cond].
+func (m *Mock[T]) When(args ...any) *Cond[T] {
 	t := m.fn.Type()
 	types := collectTypes(argTypes{t})
 	pattern, err := checkMatcherPattern(args, types, t.IsVariadic())

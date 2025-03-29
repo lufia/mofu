@@ -85,22 +85,22 @@ func TestMockReturn(t *testing.T) {
 func TestMockMatch(t *testing.T) {
 	t.Run("match", func(t *testing.T) {
 		m := MockFor[func(int) int]()
-		m.Match(10).Return(100)
+		m.When(10).Return(100)
 		fn, r := m.Make()
 		gt.Equal(t, fn(10), 100)
 		gt.Equal(t, r.Count(), 1)
 	})
 	t.Run("match existing pattern", func(t *testing.T) {
 		m := MockFor[func(int) int]()
-		m.Match(10).Return(100)
-		m.Match(10).Return(101)
+		m.When(10).Return(100)
+		m.When(10).Return(101)
 		fn, _ := m.Make()
 		gt.Equal(t, fn(10), 100)
 		gt.Equal(t, fn(10), 101)
 	})
 	t.Run("not match", func(t *testing.T) {
 		m := MockFor[func(int) int]()
-		m.Match(10).Return(100)
+		m.When(10).Return(100)
 		m.Return(2)
 		fn, _ := m.Make()
 		gt.Equal(t, fn(0), 2)
@@ -112,7 +112,7 @@ func TestMockMatch(t *testing.T) {
 			gt.NotNil(t, e)
 		}()
 		m := MockFor[func(int)]()
-		m.Match()
+		m.When()
 	})
 	t.Run("the length is greater than the argument's", func(t *testing.T) {
 		defer func() {
@@ -120,7 +120,7 @@ func TestMockMatch(t *testing.T) {
 			gt.NotNil(t, e)
 		}()
 		m := MockFor[func(string)]()
-		m.Match("a", "b")
+		m.When("a", "b")
 	})
 
 	t.Run("the type is not equal to the argument's", func(t *testing.T) {
@@ -129,12 +129,12 @@ func TestMockMatch(t *testing.T) {
 			gt.NotNil(t, e)
 		}()
 		m := MockFor[func(string)]()
-		m.Match(30)
+		m.When(30)
 	})
 
 	t.Run("variadic arguments", func(t *testing.T) {
 		m := MockOf(fmt.Sprint)
-		m.Match(1, 2).Return("1 2")
+		m.When(1, 2).Return("1 2")
 		fn, _ := m.Make()
 		gt.Equal(t, fn(1, 2), "1 2")
 	})
