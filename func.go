@@ -44,12 +44,7 @@ func MockOf[T any](fn T) *Mock[T] {
 type Cond[T any] struct {
 	m       *Mock[T]
 	pattern []condExpr
-	ret     []retValue
-}
-
-type retValue struct {
-	values []*typeval
-	repeat bool
+	retOnce [][]*typeval
 }
 
 type condExpr interface {
@@ -201,21 +196,21 @@ func flattenVariadicType(types []reflect.Type, n int) []reflect.Type {
 	return a
 }
 
-// Return adds the return values that will return them from a mock function.
-func (c *Cond[T]) Return(results ...any) *Cond[T] {
+// ReturnOnce adds the return values that will return them from a mock function.
+func (c *Cond[T]) ReturnOnce(results ...any) *Cond[T] {
 	t := c.m.fn.Type()
 	types := collectTypes(resultTypes{t})
 	a, err := checkReturnValue(results, types, false)
 	if err != nil {
 		panic(err)
 	}
-	c.ret = append(c.ret, retValue{a, true})
+	c.retOnce = append(c.retOnce, a)
 	return c
 }
 
-// Return is like [Cond.Return] except this adds results to the default matcher.
-func (m *Mock[T]) Return(results ...any) *Mock[T] {
-	m.dflt.Return(results...)
+// ReturnOnce is like [Cond.Return] except this adds results to the default matcher.
+func (m *Mock[T]) ReturnOnce(results ...any) *Mock[T] {
+	m.dflt.ReturnOnce(results...)
 	return m
 }
 
@@ -243,16 +238,16 @@ func (m *Mock[T]) Make() (T, *Recorder[T]) {
 		if c == nil {
 			c = m.dflt
 		}
-		if len(c.ret) == 0 {
+		if len(c.retOnce) == 0 {
 			r.call.Add(1)
 			return m.zeroReturn()
 		}
 		off := r.call.Add(1) - 1
-		n := int64(len(c.ret))
+		n := int64(len(c.retOnce))
 		if off >= n {
 			off = n - 1
 		}
-		return toValues(c.ret[off].values)
+		return toValues(c.retOnce[off])
 	})
 	return p.Interface().(T), &r
 }

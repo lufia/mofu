@@ -20,7 +20,7 @@ func Cook(r Retriever) {
 
 func Example() {
 	mock := mofu.MockFor[Retriever]()
-	mock.Return("OK")
+	mock.ReturnOnce("OK")
 
 	fn, r := mock.Make()
 	Cook(fn)

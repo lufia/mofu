@@ -23,7 +23,7 @@ func TestFor_notFunc(t *testing.T) {
 func TestMockReturn(t *testing.T) {
 	t.Run("repeat a value", func(t *testing.T) {
 		m := MockFor[func() string]()
-		m.Return("OK")
+		m.ReturnOnce("OK")
 		fn, r := m.Make()
 		gt.Equal(t, fn(), "OK")
 		gt.Equal(t, fn(), "OK")
@@ -31,7 +31,7 @@ func TestMockReturn(t *testing.T) {
 	})
 	t.Run("repeat last value", func(t *testing.T) {
 		m := MockFor[func() int]()
-		fn, r := m.Return(1).Return(2).Make()
+		fn, r := m.ReturnOnce(1).ReturnOnce(2).Make()
 		gt.Equal(t, fn(), 1)
 		gt.Equal(t, fn(), 2)
 		gt.Equal(t, fn(), 2)
@@ -50,7 +50,7 @@ func TestMockReturn(t *testing.T) {
 			gt.NotNil(t, e)
 		}()
 		m := MockFor[func() float64]()
-		m.Return()
+		m.ReturnOnce()
 	})
 	t.Run("the length is greater than the result's", func(t *testing.T) {
 		defer func() {
@@ -58,7 +58,7 @@ func TestMockReturn(t *testing.T) {
 			gt.NotNil(t, e)
 		}()
 		m := MockFor[func() float64]()
-		m.Return(1.0, 2.0)
+		m.ReturnOnce(1.0, 2.0)
 	})
 
 	t.Run("the type is not equal to the result's", func(t *testing.T) {
@@ -67,7 +67,7 @@ func TestMockReturn(t *testing.T) {
 			gt.NotNil(t, e)
 		}()
 		m := MockFor[func() string]()
-		m.Return(30)
+		m.ReturnOnce(30)
 	})
 
 	t.Run("replay", func(t *testing.T) {
@@ -85,23 +85,23 @@ func TestMockReturn(t *testing.T) {
 func TestMockMatch(t *testing.T) {
 	t.Run("match", func(t *testing.T) {
 		m := MockFor[func(int) int]()
-		m.When(10).Return(100)
+		m.When(10).ReturnOnce(100)
 		fn, r := m.Make()
 		gt.Equal(t, fn(10), 100)
 		gt.Equal(t, r.Count(), 1)
 	})
 	t.Run("match existing pattern", func(t *testing.T) {
 		m := MockFor[func(int) int]()
-		m.When(10).Return(100)
-		m.When(10).Return(101)
+		m.When(10).ReturnOnce(100)
+		m.When(10).ReturnOnce(101)
 		fn, _ := m.Make()
 		gt.Equal(t, fn(10), 100)
 		gt.Equal(t, fn(10), 101)
 	})
 	t.Run("not match", func(t *testing.T) {
 		m := MockFor[func(int) int]()
-		m.When(10).Return(100)
-		m.Return(2)
+		m.When(10).ReturnOnce(100)
+		m.ReturnOnce(2)
 		fn, _ := m.Make()
 		gt.Equal(t, fn(0), 2)
 	})
@@ -134,7 +134,7 @@ func TestMockMatch(t *testing.T) {
 
 	t.Run("variadic arguments", func(t *testing.T) {
 		m := MockOf(fmt.Sprint)
-		m.When(1, 2).Return("1 2")
+		m.When(1, 2).ReturnOnce("1 2")
 		fn, _ := m.Make()
 		gt.Equal(t, fn(1, 2), "1 2")
 	})
