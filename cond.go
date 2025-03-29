@@ -21,7 +21,22 @@ type typeval struct {
 }
 
 func (tv *typeval) canAccept(arg *typeval) bool {
-	return tv.typ == arg.typ && tv.val.Equal(arg.val)
+	if tv.typ != arg.typ {
+		return false
+	}
+	if tv.val.Comparable() {
+		return tv.val.Equal(arg.val)
+	}
+	if tv.typ.Kind() == reflect.Slice {
+		return tv.val.UnsafePointer() == arg.val.UnsafePointer()
+	}
+	if tv.typ.Kind() == reflect.Map {
+		return tv.val.UnsafePointer() == arg.val.UnsafePointer()
+	}
+	if tv.typ.Kind() == reflect.Func {
+		return tv.val.UnsafePointer() == arg.val.UnsafePointer()
+	}
+	return false
 }
 
 func (tv *typeval) equal(o condExpr) bool {
