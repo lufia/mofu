@@ -43,7 +43,7 @@ func MockOf[T any](fn T) *Mock[T] {
 // Cond represents a condition for returning values identified by the arguments.
 type Cond[T any] struct {
 	m       *Mock[T]
-	pattern []argMatcher
+	pattern []condExpr
 	ret     []retValue
 }
 
@@ -52,17 +52,17 @@ type retValue struct {
 	repeat bool
 }
 
-type argMatcher interface {
-	matchArg(arg *typeval) bool
-	equal(o argMatcher) bool
+type condExpr interface {
+	canAccept(arg *typeval) bool
+	equal(o condExpr) bool
 }
 
 type anyMatcher int
 
-func (anyMatcher) matchArg(arg *typeval) bool { return true }
-func (anyMatcher) equal(o argMatcher) bool    { return o == Any }
+func (anyMatcher) canAccept(arg *typeval) bool { return true }
+func (anyMatcher) equal(o condExpr) bool       { return o == Any }
 
-var _ argMatcher = (anyMatcher)(0)
+var _ condExpr = (anyMatcher)(0)
 
 const Any = anyMatcher(0)
 
@@ -71,14 +71,14 @@ const Any = anyMatcher(0)
 // The caller should guarantee the length of args equal to the length of args of T.
 func (c *Cond[T]) matchArgs(args []*typeval) bool {
 	for i, m := range c.pattern {
-		if !m.matchArg(args[i]) {
+		if !m.canAccept(args[i]) {
 			return false
 		}
 	}
 	return true
 }
 
-func (c *Cond[T]) equalPattern(pattern []argMatcher) bool {
+func (c *Cond[T]) equalPattern(pattern []condExpr) bool {
 	for i, m := range c.pattern {
 		if !m.equal(pattern[i]) {
 			return false
@@ -92,16 +92,16 @@ type typeval struct {
 	val reflect.Value
 }
 
-func (tv *typeval) matchArg(arg *typeval) bool {
+func (tv *typeval) canAccept(arg *typeval) bool {
 	return tv.typ == arg.typ && tv.val.Equal(arg.val)
 }
 
-func (tv *typeval) equal(o argMatcher) bool {
+func (tv *typeval) equal(o condExpr) bool {
 	p, ok := o.(*typeval)
-	return ok && tv.matchArg(p)
+	return ok && tv.canAccept(p)
 }
 
-var _ argMatcher = (*typeval)(nil)
+var _ condExpr = (*typeval)(nil)
 
 func newTypeval(v reflect.Value) *typeval {
 	return &typeval{v.Type(), v}
@@ -163,7 +163,7 @@ func checkReturnValue(values []any, types []reflect.Type, isVariadic bool) ([]*t
 	return a, nil
 }
 
-func checkMatcherPattern(values []any, types []reflect.Type, isVariadic bool) ([]argMatcher, error) {
+func checkMatcherPattern(values []any, types []reflect.Type, isVariadic bool) ([]condExpr, error) {
 	if len(values) == 0 && len(types) == 0 {
 		return nil, nil
 	}
@@ -173,10 +173,10 @@ func checkMatcherPattern(values []any, types []reflect.Type, isVariadic bool) ([
 	if len(values) != len(types) {
 		return nil, fmt.Errorf("number of args/results must match to the function signature: %v vs %v", types, values)
 	}
-	a := make([]argMatcher, len(values))
+	a := make([]condExpr, len(values))
 	for i, v := range values {
 		switch v := v.(type) {
-		case argMatcher:
+		case condExpr:
 			a[i] = v
 		default:
 			p, err := checkTypeval(v, types[i])
@@ -296,7 +296,7 @@ func (m *Mock[T]) lookupMatcher(args []*typeval) *Cond[T] {
 	return nil
 }
 
-func (m *Mock[T]) registerMatcher(pattern []argMatcher) *Cond[T] {
+func (m *Mock[T]) registerMatcher(pattern []condExpr) *Cond[T] {
 	for _, c := range m.conds {
 		if c.equalPattern(pattern) {
 			return c
