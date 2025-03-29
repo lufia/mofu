@@ -52,19 +52,10 @@ type condExpr interface {
 	equal(o condExpr) bool
 }
 
-type anyMatcher int
-
-func (anyMatcher) canAccept(arg *typeval) bool { return true }
-func (anyMatcher) equal(o condExpr) bool       { return o == Any }
-
-var _ condExpr = (anyMatcher)(0)
-
-const Any = anyMatcher(0)
-
-// matchArgs reports whether args equals the expected argument pattern of c.
+// isCorrect reports whether args equals the expected argument pattern of c.
 //
 // The caller should guarantee the length of args equal to the length of args of T.
-func (c *Cond[T]) matchArgs(args []*typeval) bool {
+func (c *Cond[T]) isCorrect(args []*typeval) bool {
 	for i, m := range c.pattern {
 		if !m.canAccept(args[i]) {
 			return false
@@ -80,26 +71,6 @@ func (c *Cond[T]) equalPattern(pattern []condExpr) bool {
 		}
 	}
 	return true
-}
-
-type typeval struct {
-	typ reflect.Type
-	val reflect.Value
-}
-
-func (tv *typeval) canAccept(arg *typeval) bool {
-	return tv.typ == arg.typ && tv.val.Equal(arg.val)
-}
-
-func (tv *typeval) equal(o condExpr) bool {
-	p, ok := o.(*typeval)
-	return ok && tv.canAccept(p)
-}
-
-var _ condExpr = (*typeval)(nil)
-
-func newTypeval(v reflect.Value) *typeval {
-	return &typeval{v.Type(), v}
 }
 
 // checkTypeval checks whether v is assignable to type typ.
@@ -284,7 +255,7 @@ func toValues(a []*typeval) []reflect.Value {
 
 func (m *Mock[T]) lookupMatcher(args []*typeval) *Cond[T] {
 	for _, c := range m.conds {
-		if c.matchArgs(args) {
+		if c.isCorrect(args) {
 			return c
 		}
 	}
