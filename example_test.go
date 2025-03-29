@@ -7,33 +7,33 @@ import (
 	"github.com/lufia/mofu"
 )
 
-type Retriever func(key string) string
+type Retriever func(key string) (string, error)
 
-func (fn Retriever) Get(key string) string {
+func (fn Retriever) Get(key string) (string, error) {
 	return fn(key)
 }
 
-func Cook(r Retriever) {
+func SUT(r Retriever) {
 	r.Get("key1")
 	r.Get("key2")
 }
 
 func Example() {
 	mock := mofu.MockFor[Retriever]()
-	mock.ReturnOnce("OK")
+	mock.Return("OK", nil)
 
 	fn, r := mock.Make()
-	Cook(fn)
+	SUT(fn)
 
 	fmt.Println(r.Count())
 	scene := slices.Collect(r.Replay())
-	scene[0](func(key string) string {
+	scene[0](func(key string) (string, error) {
 		fmt.Println(key)
-		return "" // not used
+		return "", nil // not used
 	})
-	scene[1](func(key string) string {
+	scene[1](func(key string) (string, error) {
 		fmt.Println(key)
-		return "" // not used
+		return "", nil // not used
 	})
 	// Output: 2
 	// key1

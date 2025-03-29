@@ -20,7 +20,8 @@ func ExampleRecorder_Replay() {
 	sleep(100 * time.Millisecond)
 	for do := range r.Replay() {
 		do(func(d time.Duration) {
-			fmt.Println(d) // Output: 100ms
+			fmt.Println(d)
 		})
 	}
+	// Output: 100ms
 }

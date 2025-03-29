@@ -45,6 +45,7 @@ type Cond[T any] struct {
 	m       *Mock[T]
 	pattern []condExpr
 	retOnce [][]*typeval
+	dflt    []*typeval
 }
 
 type condExpr interface {
@@ -179,9 +180,27 @@ func (c *Cond[T]) ReturnOnce(results ...any) *Cond[T] {
 	return c
 }
 
-// ReturnOnce is like [Cond.Return] except this adds results to the default matcher.
+// Return sets the return values that will default return them from a mock function.
+func (c *Cond[T]) Return(results ...any) *Cond[T] {
+	t := c.m.fn.Type()
+	types := collectTypes(resultTypes{t})
+	a, err := checkReturnValue(results, types, false)
+	if err != nil {
+		panic(err)
+	}
+	c.dflt = a
+	return c
+}
+
+// ReturnOnce is like [Cond.ReturnOnce] except this adds results to the default condition.
 func (m *Mock[T]) ReturnOnce(results ...any) *Mock[T] {
 	m.dflt.ReturnOnce(results...)
+	return m
+}
+
+// Return is like [Cond.Return] except this sets results to the default condition.
+func (m *Mock[T]) Return(results ...any) *Mock[T] {
+	m.dflt.Return(results...)
 	return m
 }
 
@@ -199,26 +218,30 @@ func (m *Mock[T]) When(args ...any) *Cond[T] {
 // Make returns a mock function and its recorder.
 func (m *Mock[T]) Make() (T, *Recorder[T]) {
 	var r Recorder[T]
+	r.nused = make(map[*Cond[T]]int)
 	p := reflect.MakeFunc(m.fn.Type(), func(args []reflect.Value) []reflect.Value {
 		r.params = append(r.params, args)
 		a := fromValues(args)
 		if m.fn.Type().IsVariadic() {
 			a = flattenVariadic(a)
 		}
-		c := m.lookupMatcher(a)
+		c := m.lookupCond(a)
 		if c == nil {
 			c = m.dflt
 		}
-		if len(c.retOnce) == 0 {
-			r.call.Add(1)
+		off := r.nused[c]
+		r.nused[c]++
+		r.call.Add(1)
+
+		ret := c.dflt
+		n := len(c.retOnce)
+		if off < n {
+			ret = c.retOnce[off]
+		}
+		if ret == nil {
 			return m.zeroReturn()
 		}
-		off := r.call.Add(1) - 1
-		n := int64(len(c.retOnce))
-		if off >= n {
-			off = n - 1
-		}
-		return toValues(c.retOnce[off])
+		return toValues(ret)
 	})
 	return p.Interface().(T), &r
 }
@@ -253,7 +276,7 @@ func toValues(a []*typeval) []reflect.Value {
 	return values
 }
 
-func (m *Mock[T]) lookupMatcher(args []*typeval) *Cond[T] {
+func (m *Mock[T]) lookupCond(args []*typeval) *Cond[T] {
 	for _, c := range m.conds {
 		if c.isCorrect(args) {
 			return c
@@ -268,7 +291,7 @@ func (m *Mock[T]) registerMatcher(pattern []condExpr) *Cond[T] {
 			return c
 		}
 	}
-	c := &Cond[T]{m, pattern, nil}
+	c := &Cond[T]{m, pattern, nil, nil}
 	m.conds = append(m.conds, c)
 	return c
 }
@@ -286,7 +309,7 @@ func (m *Mock[T]) zeroReturn() []reflect.Value {
 // Recorder records the statistics of a mock function.
 type Recorder[T any] struct {
 	call   atomic.Int64
-	fn     T
+	nused  map[*Cond[T]]int
 	params [][]reflect.Value
 }
 
