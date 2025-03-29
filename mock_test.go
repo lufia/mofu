@@ -27,7 +27,7 @@ func ExampleMock_Match() {
 	fmt.Println(string(b)) // Output: OK
 }
 
-func ExampleMatcher_Return() {
+func ExampleCond_Return() {
 	m := mofu.MockOf(os.ReadFile)
 	m.Match("a.txt").Return([]byte("OK"), nil)
 	m.Match("x.txt").Return(nil, errors.ErrUnsupported)

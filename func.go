@@ -11,18 +11,19 @@ import (
 
 // Mock is a mock object for creating a mock function.
 type Mock[T any] struct {
-	fn          reflect.Value
-	matchers    []*Matcher[T]
-	dfltMatcher *Matcher[T]
+	fn reflect.Value
+
+	conds []*Cond[T]
+	dflt  *Cond[T]
 }
 
-// MockFor returns an empty mock object.
+// MockFor creates an empty mock object.
 func MockFor[T any]() *Mock[T] {
 	var fn T
 	return MockOf(fn)
 }
 
-// MockOf returns an empty mock object.
+// MockOf creates an empty mock object.
 //
 // Fn is only used to specify the type of a mock function.
 func MockOf[T any](fn T) *Mock[T] {
@@ -33,14 +34,14 @@ func MockOf[T any](fn T) *Mock[T] {
 	m := &Mock[T]{
 		fn: v,
 	}
-	m.dfltMatcher = &Matcher[T]{
+	m.dflt = &Cond[T]{
 		m: m,
 	}
 	return m
 }
 
-// Matcher represents a matcher for a mock function arguments.
-type Matcher[T any] struct {
+// Cond represents a condition for returning values identified by the arguments.
+type Cond[T any] struct {
 	m       *Mock[T]
 	pattern []argMatcher
 	ret     []retValue
@@ -68,7 +69,7 @@ const Any = anyMatcher(0)
 // matchArgs reports whether args equals the expected argument pattern of c.
 //
 // The caller should guarantee the length of args equal to the length of args of T.
-func (c *Matcher[T]) matchArgs(args []*typeval) bool {
+func (c *Cond[T]) matchArgs(args []*typeval) bool {
 	for i, m := range c.pattern {
 		if !m.matchArg(args[i]) {
 			return false
@@ -77,7 +78,7 @@ func (c *Matcher[T]) matchArgs(args []*typeval) bool {
 	return true
 }
 
-func (c *Matcher[T]) equalPattern(pattern []argMatcher) bool {
+func (c *Cond[T]) equalPattern(pattern []argMatcher) bool {
 	for i, m := range c.pattern {
 		if !m.equal(pattern[i]) {
 			return false
@@ -201,7 +202,7 @@ func flattenVariadicType(types []reflect.Type, n int) []reflect.Type {
 }
 
 // Return adds the return values that will return them from a mock function.
-func (c *Matcher[T]) Return(results ...any) *Matcher[T] {
+func (c *Cond[T]) Return(results ...any) *Cond[T] {
 	t := c.m.fn.Type()
 	types := collectTypes(resultTypes{t})
 	a, err := checkReturnValue(results, types, false)
@@ -212,14 +213,14 @@ func (c *Matcher[T]) Return(results ...any) *Matcher[T] {
 	return c
 }
 
-// Return is like [Matcher.Return] except this adds results to the default matcher.
+// Return is like [Cond.Return] except this adds results to the default matcher.
 func (m *Mock[T]) Return(results ...any) *Mock[T] {
-	m.dfltMatcher.Return(results...)
+	m.dflt.Return(results...)
 	return m
 }
 
-// Match returns a [Matcher].
-func (m *Mock[T]) Match(args ...any) *Matcher[T] {
+// Match returns a [Cond].
+func (m *Mock[T]) Match(args ...any) *Cond[T] {
 	t := m.fn.Type()
 	types := collectTypes(argTypes{t})
 	pattern, err := checkMatcherPattern(args, types, t.IsVariadic())
@@ -240,7 +241,7 @@ func (m *Mock[T]) Make() (T, *Recorder[T]) {
 		}
 		c := m.lookupMatcher(a)
 		if c == nil {
-			c = m.dfltMatcher
+			c = m.dflt
 		}
 		if len(c.ret) == 0 {
 			r.call.Add(1)
@@ -286,8 +287,8 @@ func toValues(a []*typeval) []reflect.Value {
 	return values
 }
 
-func (m *Mock[T]) lookupMatcher(args []*typeval) *Matcher[T] {
-	for _, c := range m.matchers {
+func (m *Mock[T]) lookupMatcher(args []*typeval) *Cond[T] {
+	for _, c := range m.conds {
 		if c.matchArgs(args) {
 			return c
 		}
@@ -295,14 +296,14 @@ func (m *Mock[T]) lookupMatcher(args []*typeval) *Matcher[T] {
 	return nil
 }
 
-func (m *Mock[T]) registerMatcher(pattern []argMatcher) *Matcher[T] {
-	for _, c := range m.matchers {
+func (m *Mock[T]) registerMatcher(pattern []argMatcher) *Cond[T] {
+	for _, c := range m.conds {
 		if c.equalPattern(pattern) {
 			return c
 		}
 	}
-	c := &Matcher[T]{m, pattern, nil}
-	m.matchers = append(m.matchers, c)
+	c := &Cond[T]{m, pattern, nil}
+	m.conds = append(m.conds, c)
 	return c
 }
 
