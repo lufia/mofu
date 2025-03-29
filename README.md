@@ -11,5 +11,5 @@ TODO
 
 [godev-image]: https://pkg.go.dev/badge/github.com/lufia/mofu
 [godev-url]: https://pkg.go.dev/github.com/lufia/mofu
-[actions-image]: https://github.com/lufia/mofu/workflows/Test/badge.svg?branch=main
-[actions-url]: https://github.com/lufia/mofu/actions?workflow=Test
+[actions-image]: https://github.com/lufia/mofu/actions/workflows/test.yml/badge.svg
+[actions-url]: https://github.com/lufia/mofu/actions/workflow/test.yml
