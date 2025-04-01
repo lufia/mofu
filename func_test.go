@@ -39,6 +39,77 @@ func TestMock_Return(t *testing.T) {
 		gt.Equal(t, fn(), 2)
 		gt.Equal(t, r.Count(), 3)
 	})
+	t.Run("panic when Return is called twice", func(t *testing.T) {
+		defer func() {
+			e := recover()
+			gt.NotNil(t, e)
+		}()
+		m := MockFor[func() int]()
+		m.Return(2)
+		m.Return(1)
+	})
+	t.Run("panic when Return is called after Panic", func(t *testing.T) {
+		defer func() {
+			e := recover()
+			gt.NotNil(t, e)
+		}()
+		m := MockFor[func() int]()
+		m.Panic("fake")
+		m.Return(1)
+	})
+}
+
+func TestMock_Panic(t *testing.T) {
+	t.Run("repeat panic", func(t *testing.T) {
+		m := MockFor[func() string]()
+		m.Panic("hello")
+		fn, r := m.Make()
+		test := func() {
+			defer func() {
+				e := recover()
+				gt.NotNil(t, e)
+				gt.String(t, e.(string)).Equal("hello")
+			}()
+			fn()
+		}
+		test()
+		test()
+		gt.Equal(t, r.Count(), 2)
+	})
+	t.Run("returns once values before the default value", func(t *testing.T) {
+		m := MockFor[func() int]()
+		fn, r := m.PanicOnce("once").Panic("default").Make()
+		test := func(s string) {
+			defer func() {
+				e := recover()
+				gt.NotNil(t, e)
+				gt.String(t, e.(string)).Equal(s)
+			}()
+			fn()
+		}
+		test("once")
+		test("default")
+		test("default")
+		gt.Equal(t, r.Count(), 3)
+	})
+	t.Run("panic when Panic is called twice", func(t *testing.T) {
+		defer func() {
+			e := recover()
+			gt.NotNil(t, e)
+		}()
+		m := MockFor[func()]()
+		m.Panic("fake1")
+		m.Panic("fake2")
+	})
+	t.Run("panic when Panic is called after Return", func(t *testing.T) {
+		defer func() {
+			e := recover()
+			gt.NotNil(t, e)
+		}()
+		m := MockFor[func() int]()
+		m.Return(1)
+		m.Panic("fake")
+	})
 }
 
 func TestMock_ReturnOnce(t *testing.T) {
@@ -73,6 +144,24 @@ func TestMock_ReturnOnce(t *testing.T) {
 		}()
 		m := MockFor[func() string]()
 		m.ReturnOnce(30)
+	})
+}
+
+func TestMock_PanicOnce(t *testing.T) {
+	t.Run("panic once", func(t *testing.T) {
+		m := MockFor[func() int]()
+		fn, r := m.PanicOnce("hello").Make()
+		test := func(s string) {
+			defer func() {
+				e := recover()
+				gt.NotNil(t, e)
+				gt.String(t, e.(string)).Equal(s)
+			}()
+			fn()
+		}
+		test("hello")
+		gt.Equal(t, fn(), 0)
+		gt.Equal(t, r.Count(), 2)
 	})
 }
 
