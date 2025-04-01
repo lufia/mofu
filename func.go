@@ -1,4 +1,3 @@
-// Package mofu provides utilities to create a mock function to use in test code.
 package mofu
 
 import (
