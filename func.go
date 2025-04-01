@@ -5,7 +5,7 @@ import (
 	"iter"
 	"reflect"
 	"slices"
-	"sync/atomic"
+	"sync"
 )
 
 // Mock is a mock object for creating a mock function.
@@ -274,7 +274,6 @@ func (m *Mock[T]) Make() (T, *Recorder[T]) {
 	var r Recorder[T]
 	r.nused = make(map[*Cond[T]]int)
 	p := reflect.MakeFunc(m.fn.Type(), func(args []reflect.Value) []reflect.Value {
-		r.params = append(r.params, args)
 		a := fromValues(args)
 		if m.fn.Type().IsVariadic() {
 			a = flattenVariadic(a)
@@ -284,8 +283,12 @@ func (m *Mock[T]) Make() (T, *Recorder[T]) {
 			c = m.dflt
 		}
 		off := r.nused[c]
+
+		r.Lock()
+		r.params = append(r.params, args)
 		r.nused[c]++
-		r.call.Add(1)
+		r.call++
+		r.Unlock()
 
 		ret := c.dflt
 		n := len(c.evalq)
@@ -354,21 +357,28 @@ func (m *Mock[T]) zeroReturn() []reflect.Value {
 
 // Recorder records the statistics of a mock function.
 type Recorder[T any] struct {
-	call   atomic.Int64
+	sync.RWMutex
+
+	call   int64
 	nused  map[*Cond[T]]int
 	params [][]reflect.Value
 }
 
 // Count returns the call count of the mock function.
 func (r *Recorder[T]) Count() int64 {
-	return r.call.Load()
+	r.RLock()
+	defer r.RUnlock()
+	return r.call
 }
 
 // Replay returns an iterator over all call logs of an mock function.
 // Each call reproduces its situation with function arguments.
 func (r *Recorder[T]) Replay() iter.Seq[func(T)] {
 	return func(yield func(func(T)) bool) {
-		for _, a := range r.params {
+		r.RLock()
+		params := r.params
+		r.RUnlock()
+		for _, a := range params {
 			do := func(fn T) {
 				v := reflect.ValueOf(fn)
 				v.Call(a)
