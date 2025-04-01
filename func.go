@@ -44,8 +44,8 @@ func MockOf[T any](fn T) *Mock[T] {
 type Cond[T any] struct {
 	m       *Mock[T]
 	pattern []condExpr
-	retOnce []returnValues
-	dflt    returnValues
+	evalq   []evaluator
+	dflt    evaluator
 }
 
 type condExpr interface {
@@ -65,6 +65,14 @@ func (a returnValues) Eval() []reflect.Value {
 		values[i] = v.val
 	}
 	return values
+}
+
+type panicObject struct {
+	v any
+}
+
+func (o panicObject) Eval() []reflect.Value {
+	panic(o.v)
 }
 
 // isCorrect reports whether args equals the expected argument pattern of c.
@@ -181,7 +189,7 @@ func flattenVariadicType(types []reflect.Type, n int) []reflect.Type {
 	return a
 }
 
-// ReturnOnce adds the return values that will return them from a mock function.
+// ReturnOnce adds the return values to the eval queue of the mock function.
 func (c *Cond[T]) ReturnOnce(results ...any) *Cond[T] {
 	t := c.m.fn.Type()
 	types := collectTypes(resultTypes{t})
@@ -189,12 +197,22 @@ func (c *Cond[T]) ReturnOnce(results ...any) *Cond[T] {
 	if err != nil {
 		panic(err)
 	}
-	c.retOnce = append(c.retOnce, a)
+	c.evalq = append(c.evalq, a)
 	return c
 }
 
-// Return sets the return values that will default return them from a mock function.
+// PanicOnce adds panic(v) to the eval queue of the mock function.
+func (c *Cond[T]) PanicOnce(v any) *Cond[T] {
+	c.evalq = append(c.evalq, &panicObject{v})
+	return c
+}
+
+// Return overwrites default behavior of the mock function with results.
+// It panics if either [Cond.Return] or [Cond.Panic] is called two or more times.
 func (c *Cond[T]) Return(results ...any) *Cond[T] {
+	if c.dflt != nil {
+		panic("either Return or Panic called twice for a condition")
+	}
 	t := c.m.fn.Type()
 	types := collectTypes(resultTypes{t})
 	a, err := checkReturnValue(results, types, false)
@@ -205,15 +223,39 @@ func (c *Cond[T]) Return(results ...any) *Cond[T] {
 	return c
 }
 
-// ReturnOnce is like [Cond.ReturnOnce] except this adds results to the default condition.
+// Panic overwrites default behavior of the mock function with panic(v).
+// It panics if either [Cond.Return] or [Cond.Panic] is called two or more times.
+func (c *Cond[T]) Panic(v any) *Cond[T] {
+	if c.dflt != nil {
+		panic("either Return or Panic called twice for a condition")
+	}
+	c.dflt = &panicObject{v}
+	return c
+}
+
+// ReturnOnce is like [Cond.ReturnOnce] except this adds the return values to the default condition.
 func (m *Mock[T]) ReturnOnce(results ...any) *Mock[T] {
 	m.dflt.ReturnOnce(results...)
 	return m
 }
 
-// Return is like [Cond.Return] except this sets results to the default condition.
+// PanicOnce is like [Cond.PanicOnce] except this adds panic(v) to the default condition.
+func (m *Mock[T]) PanicOnce(v any) *Mock[T] {
+	m.dflt.PanicOnce(v)
+	return m
+}
+
+// Return is like [Cond.Return] except this overwrites to the default condition.
+// It panics if either [Mock.Return] or [Mock.Panic] is called two or more times.
 func (m *Mock[T]) Return(results ...any) *Mock[T] {
 	m.dflt.Return(results...)
+	return m
+}
+
+// Panic is like [Cond.Panic] except this overwrites to the default condition.
+// It panics if either [Mock.Return] or [Mock.Panic] is called two or more times.
+func (m *Mock[T]) Panic(v any) *Mock[T] {
+	m.dflt.Panic(v)
 	return m
 }
 
@@ -247,9 +289,9 @@ func (m *Mock[T]) Make() (T, *Recorder[T]) {
 		r.call.Add(1)
 
 		ret := c.dflt
-		n := len(c.retOnce)
+		n := len(c.evalq)
 		if off < n {
-			ret = c.retOnce[off]
+			ret = c.evalq[off]
 		}
 		if ret == nil {
 			return m.zeroReturn()
