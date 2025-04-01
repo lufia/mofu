@@ -44,13 +44,27 @@ func MockOf[T any](fn T) *Mock[T] {
 type Cond[T any] struct {
 	m       *Mock[T]
 	pattern []condExpr
-	retOnce [][]*typeval
-	dflt    []*typeval
+	retOnce []returnValues
+	dflt    returnValues
 }
 
 type condExpr interface {
 	canAccept(arg *typeval) bool
 	equal(o condExpr) bool
+}
+
+type evaluator interface {
+	Eval() []reflect.Value
+}
+
+type returnValues []*typeval
+
+func (a returnValues) Eval() []reflect.Value {
+	values := make([]reflect.Value, len(a))
+	for i, v := range a {
+		values[i] = v.val
+	}
+	return values
 }
 
 // isCorrect reports whether args equals the expected argument pattern of c.
@@ -108,7 +122,7 @@ func checkTypeval(v any, typ reflect.Type) (*typeval, error) {
 	}
 }
 
-func checkReturnValue(values []any, types []reflect.Type, isVariadic bool) ([]*typeval, error) {
+func checkReturnValue(values []any, types []reflect.Type, isVariadic bool) (returnValues, error) {
 	if len(values) == 0 && len(types) == 0 {
 		return nil, nil
 	}
@@ -126,7 +140,7 @@ func checkReturnValue(values []any, types []reflect.Type, isVariadic bool) ([]*t
 		}
 		a[i] = p
 	}
-	return a, nil
+	return returnValues(a), nil
 }
 
 func checkMatcherPattern(values []any, types []reflect.Type, isVariadic bool) ([]condExpr, error) {
@@ -240,7 +254,7 @@ func (m *Mock[T]) Make() (T, *Recorder[T]) {
 		if ret == nil {
 			return m.zeroReturn()
 		}
-		return toValues(ret)
+		return ret.Eval()
 	})
 	return p.Interface().(T), &r
 }
@@ -265,14 +279,6 @@ func flattenVariadic(a []*typeval) []*typeval {
 		s[n+i] = newTypeval(last.Index(i))
 	}
 	return s
-}
-
-func toValues(a []*typeval) []reflect.Value {
-	values := make([]reflect.Value, len(a))
-	for i, v := range a {
-		values[i] = v.val
-	}
-	return values
 }
 
 func (m *Mock[T]) lookupCond(args []*typeval) *Cond[T] {
