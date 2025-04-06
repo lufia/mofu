@@ -10,7 +10,8 @@ import (
 
 // Mock is a mock object for creating a mock function.
 type Mock[T any] struct {
-	fn reflect.Value
+	fn   reflect.Type
+	name string
 
 	conds []*Cond[T]
 	dflt  *Cond[T]
@@ -18,8 +19,15 @@ type Mock[T any] struct {
 
 // MockFor creates an empty mock object.
 func MockFor[T any]() *Mock[T] {
-	var fn T
-	return MockOf(fn)
+	t := reflect.TypeFor[T]()
+	if t.Kind() != reflect.Func {
+		panic("fn must be a function")
+	}
+	name := ""
+	if t.NumMethod() == 1 {
+		name = t.Method(0).Name
+	}
+	return createMock[T](t, name)
 }
 
 // MockOf creates an empty mock object.
@@ -27,11 +35,17 @@ func MockFor[T any]() *Mock[T] {
 // Fn is only used to specify the type of a mock function.
 func MockOf[T any](fn T) *Mock[T] {
 	v := reflect.ValueOf(fn)
-	if v.Type().Kind() != reflect.Func {
+	t := v.Type()
+	if t.Kind() != reflect.Func {
 		panic("fn must be a function")
 	}
+	return createMock[T](t, funcName(v))
+}
+
+func createMock[T any](t reflect.Type, name string) *Mock[T] {
 	m := &Mock[T]{
-		fn: v,
+		fn:   t,
+		name: name,
 	}
 	m.dflt = &Cond[T]{
 		m: m,
@@ -190,8 +204,7 @@ func flattenVariadicType(types []reflect.Type, n int) []reflect.Type {
 
 // ReturnOnce adds the return values to the eval queue of the mock function.
 func (c *Cond[T]) ReturnOnce(results ...any) *Cond[T] {
-	t := c.m.fn.Type()
-	types := collectTypes(resultTypes{t})
+	types := collectTypes(resultTypes{c.m.fn})
 	a, err := checkReturnValue(results, types, false)
 	if err != nil {
 		panic(err)
@@ -212,8 +225,7 @@ func (c *Cond[T]) Return(results ...any) *Cond[T] {
 	if c.dflt != nil {
 		panic("either Return or Panic called twice for a condition")
 	}
-	t := c.m.fn.Type()
-	types := collectTypes(resultTypes{t})
+	types := collectTypes(resultTypes{c.m.fn})
 	a, err := checkReturnValue(results, types, false)
 	if err != nil {
 		panic(err)
@@ -260,9 +272,8 @@ func (m *Mock[T]) Panic(v any) *Mock[T] {
 
 // When returns a [Cond].
 func (m *Mock[T]) When(args ...any) *Cond[T] {
-	t := m.fn.Type()
-	types := collectTypes(argTypes{t})
-	pattern, err := checkMatcherPattern(args, types, t.IsVariadic())
+	types := collectTypes(argTypes{m.fn})
+	pattern, err := checkMatcherPattern(args, types, m.fn.IsVariadic())
 	if err != nil {
 		panic(err)
 	}
@@ -273,9 +284,9 @@ func (m *Mock[T]) When(args ...any) *Cond[T] {
 func (m *Mock[T]) Make() (T, *Recorder[T]) {
 	var r Recorder[T]
 	r.nused = make(map[*Cond[T]]int)
-	p := reflect.MakeFunc(m.fn.Type(), func(args []reflect.Value) []reflect.Value {
+	p := reflect.MakeFunc(m.fn, func(args []reflect.Value) []reflect.Value {
 		a := fromValues(args)
-		if m.fn.Type().IsVariadic() {
+		if m.fn.IsVariadic() {
 			a = flattenVariadic(a)
 		}
 		c := m.lookupCond(a)
@@ -346,11 +357,10 @@ func (m *Mock[T]) registerMatcher(pattern []condExpr) *Cond[T] {
 }
 
 func (m *Mock[T]) zeroReturn() []reflect.Value {
-	t := m.fn.Type()
-	n := t.NumOut()
+	n := m.fn.NumOut()
 	a := make([]reflect.Value, n)
 	for i := range a {
-		a[i] = reflect.Zero(t.Out(i))
+		a[i] = reflect.Zero(m.fn.Out(i))
 	}
 	return a
 }

@@ -8,22 +8,22 @@ import (
 )
 
 type MockClient struct {
-	sel *mofu.Selector
+	sel *mofu.Selector[io.ReadCloser]
 }
 
-func (c MockClient) Read(p []byte) (int, error) {
+func (c *MockClient) Read(p []byte) (int, error) {
 	return mofu.Invoke(c.sel, c.Read)(p)
 }
 
-func (c MockClient) Close() error {
+func (c *MockClient) Close() error {
 	return mofu.Invoke(c.sel, c.Close)()
 }
 
 func ExampleImplement() {
-	read, _ := mofu.MockOf(io.Reader.Read).Return(0, io.EOF).Make()
-	close, _ := mofu.MockOf(io.Closer.Close).Return(nil).Make()
+	read := mofu.MockOf(io.Reader.Read).Return(0, io.EOF)
+	close := mofu.MockOf(io.Closer.Close).Return(nil)
 	m := &MockClient{
-		sel: mofu.Implement(read, close),
+		sel: mofu.Implement[io.ReadCloser](read, close),
 	}
 	fmt.Println(Consume(m)) // Output: EOF
 }
