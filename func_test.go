@@ -2,7 +2,9 @@ package mofu
 
 import (
 	"fmt"
+	"io"
 	"testing"
+	"time"
 
 	"github.com/m-mizutani/gt"
 )
@@ -14,12 +16,38 @@ func TestMockFor(t *testing.T) {
 	gt.Equal(t, r.Count(), 1)
 }
 
+type readFn func()
+
+func (readFn) Read() {}
+
+func TestMockFor_funcName(t *testing.T) {
+	t.Run("from method name", func(t *testing.T) {
+		m := MockFor[readFn]()
+		gt.String(t, m.name).Equal("Read")
+	})
+	t.Run("anonymous", func(t *testing.T) {
+		m := MockFor[func()]()
+		gt.String(t, m.name).IsEmpty()
+	})
+}
+
 func TestMockFor_notFunc(t *testing.T) {
 	defer func() {
 		e := recover()
 		gt.NotNil(t, e)
 	}()
 	MockOf(0)
+}
+
+func TestMockOf_funcName(t *testing.T) {
+	t.Run("function", func(t *testing.T) {
+		m := MockOf(time.Sleep)
+		gt.String(t, m.name).Equal("Sleep")
+	})
+	t.Run("method", func(t *testing.T) {
+		m := MockOf(io.Reader.Read)
+		gt.String(t, m.name).Equal("Read")
+	})
 }
 
 func TestMock_Return(t *testing.T) {
