@@ -1,8 +1,6 @@
 package mofu
 
-import (
-	"reflect"
-)
+import "reflect"
 
 type anyMatcher int
 
@@ -24,19 +22,9 @@ func (tv *typeval) canAccept(arg *typeval) bool {
 	if tv.typ != arg.typ {
 		return false
 	}
-	if tv.val.Comparable() {
-		return tv.val.Equal(arg.val)
-	}
-	if tv.typ.Kind() == reflect.Slice {
-		return tv.val.UnsafePointer() == arg.val.UnsafePointer()
-	}
-	if tv.typ.Kind() == reflect.Map {
-		return tv.val.UnsafePointer() == arg.val.UnsafePointer()
-	}
-	if tv.typ.Kind() == reflect.Func {
-		return tv.val.UnsafePointer() == arg.val.UnsafePointer()
-	}
-	return false
+	v1 := tv.val.Interface()
+	v2 := arg.val.Interface()
+	return reflect.DeepEqual(v1, v2)
 }
 
 func (tv *typeval) equal(o condExpr) bool {

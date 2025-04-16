@@ -51,6 +51,15 @@ fn("bar") // 2
 fn("baz") // 0
 ```
 
+## Interface
+
+```go
+read := mofu.MockOf(io.Reader.Read).Return(0, io.EOF)
+close := mofu.MockOf(io.Closer.Close).Return(nil)
+iface := mofu.Implement[io.ReadCloser](read, close)
+defer iface.Close()
+```
+
 [godev-image]: https://pkg.go.dev/badge/github.com/lufia/mofu
 [godev-url]: https://pkg.go.dev/github.com/lufia/mofu
 [actions-image]: https://github.com/lufia/mofu/actions/workflows/test.yml/badge.svg
