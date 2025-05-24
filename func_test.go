@@ -87,6 +87,23 @@ func TestMock_Return(t *testing.T) {
 	})
 }
 
+func TestMock_ReturnFunc(t *testing.T) {
+	t.Run("returns arbitrary values with func", func(t *testing.T) {
+		m := MockFor[func(*int) int]()
+		m.ReturnFunc(func(p *int) int {
+			*p++
+			return *p * 10
+		})
+		fn, r := m.Make()
+		var n int
+		gt.Equal(t, fn(&n), 10)
+		gt.Equal(t, n, 1)
+		gt.Equal(t, fn(&n), 20)
+		gt.Equal(t, n, 2)
+		gt.Equal(t, r.Count(), 2)
+	})
+}
+
 func TestMock_Panic(t *testing.T) {
 	t.Run("repeat panic", func(t *testing.T) {
 		m := MockFor[func() string]()
@@ -172,6 +189,21 @@ func TestMock_ReturnOnce(t *testing.T) {
 		}()
 		m := MockFor[func() string]()
 		m.ReturnOnce(30)
+	})
+}
+
+func TestMock_ReturnOnceFunc(t *testing.T) {
+	t.Run("returns arbitrary values with func", func(t *testing.T) {
+		m := MockFor[func(*int) int]()
+		m.ReturnOnceFunc(func(p *int) int {
+			*p = 10
+			return 100
+		})
+		fn, r := m.Make()
+		var n int
+		gt.Equal(t, fn(&n), 100)
+		gt.Equal(t, n, 10)
+		gt.Equal(t, r.Count(), 1)
 	})
 }
 
