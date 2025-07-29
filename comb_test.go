@@ -22,3 +22,15 @@ func Consume(r io.ReadCloser) error {
 	}
 	return nil
 }
+
+func ExampleImplementInterface() {
+	read := mofu.MockOf(io.Reader.Read).Return(0, io.EOF)
+	m, r := mofu.ImplementInterface[io.Reader](read)
+	b, err := io.ReadAll(m)
+	if err != nil {
+		panic(err)
+	}
+	rec := mofu.RecorderFor(r, read)
+	fmt.Println(len(b), rec.Count())
+	// Output: 0 1
+}

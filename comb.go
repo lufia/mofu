@@ -45,10 +45,13 @@ func Implement[I any](mocks ...MockFunc) I {
 	return iface
 }
 
+// Recorders is a collection of [Recorder] for the interface.
 type Recorders[I any] struct {
 	methods map[MockFunc]*method
 }
 
+// RecorderFor returns [Recorder] corresponds to the [Mock].
+// It will panic if the method does not exist in the interface.
 func RecorderFor[I, T any](r *Recorders[I], m *Mock[T]) *Recorder[T] {
 	meth, ok := r.methods[m]
 	if !ok {
