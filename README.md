@@ -28,7 +28,7 @@ func TestFunc(t *testing.T) {
 	fn, r := m.Make()
 	SUT(fn)
 	if n := r.Count(); n != 1 {
-		t.Errorf("fn have been called %d times; want 1", n)
+		t.Errorf("fn has been called %d times; but want 1", n)
 	}
 }
 ```
@@ -56,8 +56,14 @@ fn("baz") // 0
 ```go
 read := mofu.MockOf(io.Reader.Read).Return(0, io.EOF)
 close := mofu.MockOf(io.Closer.Close).Return(nil)
-iface := mofu.Implement[io.ReadCloser](read, close)
+iface, r := mofu.ImplementInterface[io.ReadCloser](read, close)
 defer iface.Close()
+
+io.ReadAll(iface)
+rr := mofu.RecorderFor(r, read)
+if n := rr.Count(); n != 1 {
+	t.Errorf("read has been called %d times; but want 1", n)
+}
 ```
 
 [godev-image]: https://pkg.go.dev/badge/github.com/lufia/mofu
