@@ -201,7 +201,7 @@ func checkMatcherPattern(values []any, types []reflect.Type, isVariadic bool) ([
 
 func flattenVariadicType(types []reflect.Type, n int) []reflect.Type {
 	if len(types) > n {
-		return types
+		return types[:len(types)-1]
 	}
 	a := make([]reflect.Type, n)
 	last := types[len(types)-1]
