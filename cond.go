@@ -6,6 +6,7 @@ type anyMatcher int
 
 func (anyMatcher) canAccept(arg *typeval) bool { return true }
 func (anyMatcher) equal(o condExpr) bool       { return o == Any }
+func (anyMatcher) String() string              { return "<any>" }
 
 var _ condExpr = (anyMatcher)(0)
 
