@@ -1,6 +1,7 @@
 package mofu
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"testing"
@@ -301,10 +302,19 @@ func TestMock_When(t *testing.T) {
 		m.When(30)
 	})
 
-	t.Run("variadic arguments", func(t *testing.T) {
+	t.Run("variadic arguments only", func(t *testing.T) {
 		m := MockOf(fmt.Sprint)
 		m.When(1, 2).ReturnOnce("1 2")
 		fn, _ := m.Make()
 		gt.Equal(t, fn(1, 2), "1 2")
+	})
+
+	t.Run("variadic and fixed arguments", func(t *testing.T) {
+		type getObjectFunc func(ctx context.Context, path string, opts ...func())
+		m := MockFor[getObjectFunc]()
+		m.When(Any, "file")
+		fn, r := m.Make()
+		fn(context.Background(), "file")
+		gt.Number(t, r.Count()).Equal(1)
 	})
 }
