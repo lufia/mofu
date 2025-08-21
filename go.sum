@@ -2,5 +2,5 @@ github.com/google/go-cmp v0.5.9 h1:O2Tfq5qg4qc4AmwVlvv0oLiVAGB7enBSJ2x2DqQFi38=
 github.com/google/go-cmp v0.5.9/go.mod h1:17dUlkBOakJ0+DkrSSNjCkIjxS6bF9zb3elmeNGIjoY=
 github.com/m-mizutani/gt v0.0.16 h1:bhJqMeqxojsgVBo9wqjPHk4s6o7mkaQLCcOus1hp1Vs=
 github.com/m-mizutani/gt v0.0.16/go.mod h1:0MPYSfGBLmYjTduzADVmIqD58ELQ5IfBFiK/f0FmB3k=
-github.com/ovechkin-dm/go-dyno v0.4.1 h1:XyMNGY53cOpShXw3nZO27QSSkGZ12wIcUZb6V4yvBYs=
-github.com/ovechkin-dm/go-dyno v0.4.1/go.mod h1:CcJNuo7AbePMoRNpM3i1jC1Rp9kHEMyWozNdWzR+0ys=
+github.com/ovechkin-dm/go-dyno v0.5.3 h1:/MrL26kFTxbLj/qPbEtR4piVeFYUqjSamAgWpuzeD/k=
+github.com/ovechkin-dm/go-dyno v0.5.3/go.mod h1:CcJNuo7AbePMoRNpM3i1jC1Rp9kHEMyWozNdWzR+0ys=
