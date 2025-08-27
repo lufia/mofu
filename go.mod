@@ -3,7 +3,7 @@ module github.com/lufia/mofu
 go 1.23.0
 
 require (
-	github.com/m-mizutani/gt v0.0.16
+	github.com/m-mizutani/gt v0.0.17
 	github.com/ovechkin-dm/go-dyno v0.5.3
 )
 
