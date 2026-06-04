@@ -5,7 +5,12 @@ on:
     branches:
     - main
   pull_request:
+
+permissions:
+  contents: read
+  code-quality: write
+
 jobs:
   test:
-    permissions:
-    uses: lufia/workflows/.github/workflows/go-test.yml@bfc84184198b340bf1c34b2c695c2810a8e0897e # v0.11.1
+    #uses: lufia/workflows/.github/workflows/go-test.yml@bfc84184198b340bf1c34b2c695c2810a8e0897e # v0.11.1
+    uses: lufia/workflows/.github/workflows/go-test.yml@d3ff98e228bdd288cf617b8012abec628d73c6e1 # add-cq
